@@ -1,0 +1,566 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>戦国シミュレーション — CLEAN</title>
+<style>
+:root{
+  --bg:#101419;--panel:#1a2028;--panel2:#222a34;--line:#394453;
+  --text:#edf2f7;--muted:#aab5c2;--blue:#2d73c5;--red:#b94b4b;
+  --land:#d8cfb7;--land2:#c9bea2;--sea:#8aa9bd;--road:#8c7355;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Noto Sans JP",sans-serif}
+button,input,select{font:inherit}
+button{border:1px solid #4b5868;background:#28313c;color:#fff;border-radius:8px;padding:8px 11px;cursor:pointer}
+button:hover{background:#34404d}
+.app{height:100%;display:grid;grid-template-rows:auto 1fr}
+header{display:flex;gap:14px;align-items:center;padding:9px 12px;background:#151a21;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.title{font-weight:800;font-size:18px}.mode{color:#8fc2ff;font-size:12px;border:1px solid #416b94;padding:4px 7px;border-radius:999px}
+.resources{display:flex;gap:8px;flex-wrap:wrap;margin-left:auto}
+.resource{background:#202731;border:1px solid #303b48;padding:5px 8px;border-radius:7px;font-size:12px}
+.layout{min-height:0;display:grid;grid-template-columns:260px minmax(0,1fr) 290px}
+.side,.info{background:var(--panel);overflow:auto;padding:12px}
+.side{border-right:1px solid var(--line)}.info{border-left:1px solid var(--line)}
+h3{margin:8px 0 9px;font-size:14px}.section{border-bottom:1px solid #303945;padding-bottom:12px;margin-bottom:12px}
+.small{font-size:12px;color:var(--muted);line-height:1.6}
+.btnrow{display:grid;grid-template-columns:1fr 1fr;gap:7px}.btnrow button{width:100%}
+.maparea{min-width:0;min-height:0;position:relative;background:#6f92a6;overflow:hidden}
+#map{width:100%;height:100%;display:block;touch-action:none}
+.maptools{position:absolute;top:10px;left:10px;z-index:10;display:flex;gap:6px}
+.maptools button{background:#18212bcc;backdrop-filter:blur(5px)}
+.maptools .active{outline:2px solid #8fc2ff}
+.legend{position:absolute;right:10px;bottom:10px;background:#17202bdd;border:1px solid #44515f;border-radius:9px;padding:8px 10px;font-size:11px;line-height:1.7;backdrop-filter:blur(4px)}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;vertical-align:-1px;margin-right:4px}
+.dot.blue{background:var(--blue)}.dot.red{background:var(--red)}
+.territory{stroke:#596452;stroke-width:1.4;cursor:pointer;transition:filter .1s}
+.territory:hover{filter:brightness(1.08)}
+.land{fill:var(--land);stroke:#5c5b52;stroke-width:2}
+.island{fill:var(--land2);stroke:#5c5b52;stroke-width:2}
+.provlabel{font-size:10px;text-anchor:middle;pointer-events:none;fill:#30342f;font-weight:700}
+.regionlabel{font-size:16px;text-anchor:middle;fill:#3b403a;font-weight:800;opacity:.65;pointer-events:none}
+.castle{fill:#fff1d0;stroke:#333;stroke-width:1.5;cursor:pointer}
+.castle.main{stroke-width:2.5}
+.castletext{font-size:9px;text-anchor:middle;fill:#171717;pointer-events:none;font-weight:700}
+.army{cursor:grab}.army.dragging{cursor:grabbing}.armyCircle{stroke:#fff;stroke-width:2}.armytext{font-size:9px;fill:#fff;text-anchor:middle;font-weight:800;pointer-events:none}.crest{font-size:13px;text-anchor:middle;pointer-events:none}
+.road{stroke:var(--road);stroke-width:2;fill:none;opacity:.55;stroke-dasharray:7 5}
+.river{stroke:#547f9c;stroke-width:3;fill:none;opacity:.55}
+.infoCard{background:var(--panel2);border:1px solid #34404e;border-radius:9px;padding:10px;margin-bottom:8px}
+.stat{display:flex;justify-content:space-between;gap:10px;padding:4px 0;border-bottom:1px solid #303946;font-size:12px}.stat:last-child{border-bottom:0}
+.tag{display:inline-block;padding:3px 6px;border-radius:5px;background:#354252;font-size:10px;margin:2px}
+.blueTag{background:#245c98}.redTag{background:#873939}
+input[type=number]{width:100%;background:#11171d;color:#fff;border:1px solid #465363;border-radius:7px;padding:7px}
+.range{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px}
+.notice{padding:8px;background:#18212a;border-left:3px solid #7198bc;border-radius:5px;font-size:11px;line-height:1.55}
+.hidden{display:none!important}
+@media(max-width:900px){
+ .layout{grid-template-columns:1fr}
+ .side,.info{display:none}
+ .maparea{height:calc(100vh - 68px)}
+ .resources{width:100%;margin-left:0}
+}
+</style>
+</head>
+<body>
+<div class="app">
+<header>
+  <div class="title">戦国シミュレーション</div><div class="small" style="color:#9fb0c0">CLEAN v2</div>
+  <div class="mode">完全手動モード</div>
+  <div class="resources">
+    <div class="resource">年 <b id="year">1560</b></div>
+    <div class="resource">季節 <b id="season">春</b></div>
+    <div class="resource">金 <b id="gold">100000</b></div>
+    <div class="resource">兵糧 <b id="food">300000</b></div>
+    <div class="resource">総兵力 <b id="troops">23000</b></div>
+    <div class="resource">ターン <b id="turn">1</b></div>
+  </div>
+</header>
+<div class="layout">
+<aside class="side">
+  <div class="section">
+    <h3>地図</h3>
+    <div class="btnrow">
+      <button id="nationalBtn">全国</button><button id="regionBtn">地方</button>
+    </div>
+    <div class="btnrow" style="margin-top:7px">
+      <button id="prevBtn">◀ 戻る</button><button id="nextBtn">進む ▶</button>
+    </div>
+  </div>
+  <div class="section">
+    <h3>ターン</h3>
+    <div class="notice"><b>手動戦場：</b>軍の移動・戦闘・攻城は自動では発生しません。<br>ターン終了では経済と季節だけが進みます。</div>
+    <button id="endTurn" style="width:100%;margin-top:8px">ターン終了</button>
+  </div>
+  <div class="section">
+    <h3>データ</h3>
+    <div class="btnrow"><button id="saveBtn">セーブ</button><button id="loadBtn">ロード</button></div>
+    <button id="clearBtn" style="width:100%;margin-top:7px">初期状態に戻す</button>
+  </div>
+  <div class="section">
+    <h3>操作</h3>
+    <div class="small">
+      全国図では勢力の領土を確認。<br>
+      旧国をタップすると、その地域へズーム。<br>
+      詳細図では軍駒を直接ドラッグ。<br>
+      軍を選択すると兵力を手動変更できます。
+    </div>
+  </div>
+</aside>
+
+<main class="maparea">
+  <div class="maptools">
+    <button id="zoomOut">−</button><button id="zoomIn">＋</button><button id="homeBtn" class="active">日本全図</button>
+  </div>
+  <svg id="map" viewBox="0 0 1000 900" preserveAspectRatio="xMidYMid meet"></svg>
+  <div class="legend">
+    <span class="dot blue"></span>青葉家（自勢力）　
+    <span class="dot red"></span>黒峰家（敵勢力）<br>
+    ▲ 城　● 軍駒　　全国図＝領土確認
+  </div>
+</main>
+
+<aside class="info">
+  <div id="info"></div>
+</aside>
+</div>
+</div>
+
+<script>
+/* =========================================================
+   CLEAN BUILD
+   古い戦闘・AI・自動移動・自動攻城コードは存在しません。
+   ========================================================= */
+const NS="http://www.w3.org/2000/svg";
+const KEY="sengoku_clean_v1";
+
+const PROVINCES=[
+{id:"mutsu",name:"陸奥",x:785,y:115,rx:68,ry:88,lord:"国人衆",koku:700000,castle:"弘前城",region:"東北"},
+{id:"d_e",name:"出羽",x:700,y:150,rx:52,ry:90,lord:"国人衆",koku:300000,castle:"山形城",region:"東北"},
+{id:"shinano",name:"信濃",x:615,y:390,rx:70,ry:55,lord:"国人衆",koku:400000,castle:"松本城",region:"甲信"},
+{id:"echigo",name:"越後",x:675,y:300,rx:58,ry:55,lord:"国人衆",koku:500000,castle:"春日山城",region:"北陸"},
+{id:"echu",name:"越中",x:590,y:315,rx:43,ry:39,lord:"国人衆",koku:250000,castle:"富山城",region:"北陸"},
+{id:"kaga",name:"加賀",x:515,y:315,rx:38,ry:38,lord:"国人衆",koku:350000,castle:"金沢城",region:"北陸"},
+{id:"noto",name:"能登",x:480,y:270,rx:35,ry:50,lord:"国人衆",koku:220000,castle:"七尾城",region:"北陸"},
+{id:"musashi",name:"武蔵",x:525,y:500,rx:66,ry:48,lord:"青葉家",koku:800000,castle:"江戸城",region:"関東"},
+{id:"sagami",name:"相模",x:485,y:555,rx:42,ry:34,lord:"青葉家",koku:300000,castle:"小田原城",region:"関東"},
+{id:"kazusa",name:"上総",x:590,y:560,rx:38,ry:33,lord:"青葉家",koku:180000,castle:"久留里城",region:"関東"},
+{id:"shimousa",name:"下総",x:590,y:510,rx:42,ry:38,lord:"青葉家",koku:300000,castle:"本佐倉城",region:"関東"},
+{id:"shimotsuke",name:"下野",x:625,y:455,rx:46,ry:43,lord:"青葉家",koku:370000,castle:"宇都宮城",region:"関東"},
+{id:"kozuke",name:"上野",x:560,y:425,rx:45,ry:40,lord:"国人衆",koku:300000,castle:"箕輪城",region:"関東"},
+{id:"kai",name:"甲斐",x:525,y:445,rx:40,ry:38,lord:"黒峰家",koku:250000,castle:"躑躅ヶ崎館",region:"甲信"},
+{id:"suruga",name:"駿河",x:475,y:490,rx:42,ry:35,lord:"国人衆",koku:300000,castle:"駿府城",region:"東海"},
+{id:"totomi",name:"遠江",x:420,y:505,rx:40,ry:32,lord:"国人衆",koku:250000,castle:"掛川城",region:"東海"},
+{id:"mikawa",name:"三河",x:390,y:485,rx:38,ry:34,lord:"国人衆",koku:280000,castle:"岡崎城",region:"東海"},
+{id:"owari",name:"尾張",x:350,y:465,rx:35,ry:30,lord:"国人衆",koku:570000,castle:"清洲城",region:"東海"},
+{id:"mino",name:"美濃",x:405,y:405,rx:45,ry:43,lord:"国人衆",koku:540000,castle:"稲葉山城",region:"東海"},
+{id:"omi",name:"近江",x:345,y:365,rx:42,ry:48,lord:"国人衆",koku:450000,castle:"安土城",region:"近畿"},
+{id:"yamashiro",name:"山城",x:325,y:420,rx:29,ry:30,lord:"国人衆",koku:300000,castle:"二条城",region:"近畿"},
+{id:"settsu",name:"摂津",x:280,y:435,rx:35,ry:31,lord:"国人衆",koku:350000,castle:"大坂城",region:"近畿"},
+{id:"kawachi",name:"河内",x:285,y:475,rx:31,ry:30,lord:"国人衆",koku:240000,castle:"飯盛山城",region:"近畿"},
+{id:"izumi",name:"和泉",x:250,y:505,rx:28,ry:27,lord:"国人衆",koku:140000,castle:"岸和田城",region:"近畿"},
+{id:"kii",name:"紀伊",x:285,y:555,rx:53,ry:42,lord:"国人衆",koku:240000,castle:"和歌山城",region:"近畿"},
+{id:"harima",name:"播磨",x:190,y:455,rx:58,ry:40,lord:"国人衆",koku:350000,castle:"姫路城",region:"中国"},
+{id:"bizen",name:"備前",x:125,y:445,rx:35,ry:32,lord:"国人衆",koku:280000,castle:"岡山城",region:"中国"},
+{id:"aki",name:"安芸",x:95,y:520,rx:40,ry:32,lord:"国人衆",koku:190000,castle:"吉田郡山城",region:"中国"},
+{id:"suo",name:"周防",x:48,y:515,rx:31,ry:30,lord:"国人衆",koku:160000,castle:"山口館",region:"中国"},
+{id:"nagato",name:"長門",x:20,y:485,rx:25,ry:34,lord:"国人衆",koku:130000,castle:"萩城",region:"中国"},
+{id:"sanuki",name:"讃岐",x:240,y:650,rx:38,ry:25,lord:"国人衆",koku:120000,castle:"高松城",region:"四国"},
+{id:"awa",name:"阿波",x:285,y:675,rx:38,ry:31,lord:"国人衆",koku:180000,castle:"勝瑞城",region:"四国"},
+{id:"tosa",name:"土佐",x:245,y:730,rx:45,ry:35,lord:"国人衆",koku:200000,castle:"岡豊城",region:"四国"},
+{id:"iyo",name:"伊予",x:165,y:690,rx:42,ry:35,lord:"国人衆",koku:200000,castle:"湯築城",region:"四国"},
+{id:"chikuzen",name:"筑前",x:35,y:665,rx:35,ry:30,lord:"国人衆",koku:250000,castle:"福岡城",region:"九州"},
+{id:"hizen",name:"肥前",x:10,y:715,rx:30,ry:34,lord:"国人衆",koku:220000,castle:"佐賀城",region:"九州"},
+{id:"higo",name:"肥後",x:35,y:790,rx:35,ry:42,lord:"国人衆",koku:250000,castle:"熊本城",region:"九州"},
+{id:"satsuma",name:"薩摩",x:5,y:870,rx:28,ry:36,lord:"国人衆",koku:180000,castle:"鹿児島城",region:"九州"},
+{id:"hyuga",name:"日向",x:58,y:865,rx:30,ry:40,lord:"国人衆",koku:170000,castle:"都於郡城",region:"九州"},
+{id:"bingo",name:"備後",x:55,y:565,rx:38,ry:29,lord:"国人衆",koku:170000,castle:"神辺城",region:"中国"},
+{id:"izumo",name:"出雲",x:75,y:420,rx:35,ry:34,lord:"国人衆",koku:180000,castle:"月山富田城",region:"中国"},
+{id:"iwami",name:"石見",x:45,y:470,rx:30,ry:31,lord:"国人衆",koku:120000,castle:"津和野城",region:"中国"},
+{id:"hoki",name:"伯耆",x:105,y:395,rx:30,ry:30,lord:"国人衆",koku:150000,castle:"米子城",region:"中国"},
+{id:"inaba",name:"因幡",x:155,y:370,rx:32,ry:31,lord:"国人衆",koku:130000,castle:"鳥取城",region:"中国"}
+];
+
+const ARMY_SEED=[
+{id:"a1",lord:"青葉家",name:"第1軍",commander:"柴崎景綱",troops:10000,province:"sagami",side:"player",crest:"葵"},
+{id:"a2",lord:"青葉家",name:"第2軍",commander:"大庭直政",troops:5000,province:"shimotsuke",side:"player",crest:"葵"},
+{id:"e1",lord:"黒峰家",name:"甲斐軍",commander:"黒峰家当主",troops:8000,province:"kai",side:"enemy",crest:"桔梗"}
+];
+
+
+const REGIONS={
+  "東北":{x:760,y:190,scale:1.25,ids:["mutsu","d_e"]},
+  "関東":{x:570,y:500,scale:1.45,ids:["musashi","sagami","kazusa","shimousa","shimotsuke","kozuke"]},
+  "甲信":{x:570,y:390,scale:1.5,ids:["kai","shinano"]},
+  "北陸":{x:575,y:290,scale:1.45,ids:["echigo","echu","kaga","noto"]},
+  "東海":{x:405,y:450,scale:1.5,ids:["suruga","totomi","mikawa","owari","mino"]},
+  "近畿":{x:300,y:450,scale:1.5,ids:["omi","yamashiro","settsu","kawachi","izumi","kii"]},
+  "中国":{x:120,y:475,scale:1.35,ids:["harima","bizen","aki","suo","nagato","bingo","izumo","iwami","hoki","inaba"]},
+  "四国":{x:220,y:690,scale:1.5,ids:["sanuki","awa","tosa","iyo"]},
+  "九州":{x:45,y:780,scale:1.35,ids:["chikuzen","hizen","higo","satsuma","hyuga"]}
+};
+const BATTLEFIELDS={
+  "関東":{name:"関東戦場",centerX:500,centerY:450},
+  "東海":{name:"東海戦場",centerX:500,centerY:450},
+  "近畿":{name:"近畿戦場",centerX:500,centerY:450},
+  "中国":{name:"中国戦場",centerX:500,centerY:450},
+  "甲信":{name:"甲信戦場",centerX:500,centerY:450},
+  "北陸":{name:"北陸戦場",centerX:500,centerY:450},
+  "東北":{name:"東北戦場",centerX:500,centerY:450},
+  "四国":{name:"四国戦場",centerX:500,centerY:450},
+  "九州":{name:"九州戦場",centerX:500,centerY:450}
+};
+const state={
+ turn:1,year:1560,seasonIndex:0,gold:100000,food:300000,
+ selectedProvince:null,selectedRegion:null,selectedArmy:null,view:"national",zoom:1,
+ provinces:JSON.parse(JSON.stringify(PROVINCES)),armies:JSON.parse(JSON.stringify(ARMY_SEED))
+};
+const seasons=["春","夏","秋","冬"];
+const svg=document.getElementById("map");
+
+function esc(s){return String(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
+function province(id){return state.provinces.find(p=>p.id===id)}
+function army(id){return state.armies.find(a=>a.id===id)}
+function money(n){return Math.round(n).toLocaleString("ja-JP")}
+function colorFor(lord){return lord==="青葉家"?"#2d73c5":lord==="黒峰家"?"#b94b4b":"#d1c6a9"}
+function crestFor(a){return a.crest||"紋"}
+
+function pathFor(p){
+  const x=p.x,y=p.y,rx=p.rx,ry=p.ry;
+  return `M ${x-rx*.82} ${y-ry*.12}
+    Q ${x-rx} ${y-ry*.75} ${x-rx*.2} ${y-ry}
+    Q ${x+rx*.7} ${y-ry*.9} ${x+rx} ${y-.15*ry}
+    Q ${x+rx*.82} ${y+ry*.78} ${x+.1*rx} ${y+ry}
+    Q ${x-rx*.82} ${y+ry*.78} ${x-rx*.82} ${y-ry*.12}
+    Z`.replace("r y","ry");
+}
+
+const roadPairs=[
+["nagato","suo"],["suo","aki"],["aki","bingo"],["bingo","harima"],["harima","settsu"],
+["settsu","yamashiro"],["yamashiro","omi"],["omi","mino"],["mino","owari"],["owari","mikawa"],
+["mikawa","totomi"],["totomi","suruga"],["suruga","kai"],["kai","shinano"],["shinano","kozuke"],
+["kozuke","musashi"],["musashi","sagami"],["musashi","shimousa"],["shimousa","kazusa"],
+["shimotsuke","musashi"],["shinano","echigo"],["echigo","echu"],["echu","kaga"],["kaga","noto"],
+["bingo","izumo"],["izumo","hoki"],["hoki","inaba"],["kii","izumi"],["izumi","kawachi"],["kawachi","yamashiro"],
+["harima","bizen"],["bizen","bingo"],["chikuzen","hizen"],["hizen","higo"],["higo","hyuga"],["hyuga","satsuma"]
+];
+
+function drawRoads(g){
+  roadPairs.forEach(([a,b])=>{
+    const p=province(a),q=province(b);if(!p||!q)return;
+    const e=document.createElementNS(NS,"line");
+    e.setAttribute("x1",p.x);e.setAttribute("y1",p.y);e.setAttribute("x2",q.x);e.setAttribute("y2",q.y);e.setAttribute("class","road");g.appendChild(e);
+  });
+}
+function drawRivers(g){
+  [["shinano","musashi","river"],["mino","owari","river"],["yamashiro","settsu","river"],["bingo","aki","river"]].forEach(([a,b])=>{
+    const p=province(a),q=province(b);if(!p||!q)return;
+    const e=document.createElementNS(NS,"line");e.setAttribute("x1",p.x-12);e.setAttribute("y1",p.y+18);e.setAttribute("x2",q.x+10);e.setAttribute("y2",q.y-15);e.setAttribute("class","river");g.appendChild(e);
+  });
+}
+
+function drawBase(){
+  svg.innerHTML="";
+  const sea=document.createElementNS(NS,"rect");
+  sea.setAttribute("width",1000);sea.setAttribute("height",900);sea.setAttribute("fill","#8aa9bd");
+  svg.appendChild(sea);
+
+  // 実在する旧国区分図を全国図の下地として使用。
+  // ゲーム側のデータはこの画像に依存せず、画像は表示専用。
+  const img=document.createElementNS(NS,"image");
+  img.setAttribute("x",0);img.setAttribute("y",0);
+  img.setAttribute("width",1000);img.setAttribute("height",900);
+  img.setAttribute("preserveAspectRatio","xMidYMid meet");
+  img.setAttribute("href","https://upload.wikimedia.org/wikipedia/commons/thumb/3/31/Provinces_of_Japan.svg/960px-Provinces_of_Japan.svg.png");
+  img.setAttribute("opacity",".96");
+  svg.appendChild(img);
+  img.addEventListener("error",()=>{
+    const fallback=document.createElementNS(NS,"text");
+    fallback.textContent="旧国区分図を読み込めませんでした。ゲーム本体はそのまま動作します。";
+    fallback.setAttribute("x",500);fallback.setAttribute("y",820);
+    fallback.setAttribute("text-anchor","middle");fallback.setAttribute("fill","#5d2f2f");
+    fallback.setAttribute("font-size","16");fallback.setAttribute("font-weight","800");
+    svg.appendChild(fallback);
+  });
+
+  const shade=document.createElementNS(NS,"rect");
+  shade.setAttribute("width",1000);shade.setAttribute("height",900);
+  shade.setAttribute("fill","#ffffff");shade.setAttribute("opacity",".04");
+  svg.appendChild(shade);
+
+  const roads=document.createElementNS(NS,"g");drawRoads(roads);roads.setAttribute("opacity",".18");svg.appendChild(roads);
+
+  const note=document.createElementNS(NS,"text");
+  note.textContent="旧国区分図";
+  note.setAttribute("x",22);note.setAttribute("y",34);
+  note.setAttribute("fill","#26343d");note.setAttribute("font-size","13");note.setAttribute("font-weight","800");
+  svg.appendChild(note);
+}
+
+function drawNational(){
+  drawBase();
+  const g=document.createElementNS(NS,"g");
+  state.provinces.forEach(p=>{
+    const e=document.createElementNS(NS,"ellipse");e.setAttribute("cx",p.x);e.setAttribute("cy",p.y);e.setAttribute("rx",p.rx*.72);e.setAttribute("ry",p.ry*.62);e.setAttribute("class","territory");
+    e.setAttribute("fill",colorFor(p.lord));e.setAttribute("fill-opacity",p.lord==="国人衆"?".32":".72");
+    e.dataset.id=p.id;e.addEventListener("click",()=>openProvince(p.id));g.appendChild(e);
+    const t=document.createElementNS(NS,"text");t.textContent=p.name;t.setAttribute("x",p.x);t.setAttribute("y",p.y+4);t.setAttribute("class","provlabel");g.appendChild(t);
+  });
+  svg.appendChild(g);
+  state.provinces.forEach(p=>{
+    const c=document.createElementNS(NS,"path");const s= p.castle=== "小田原城"||p.castle==="江戸城";
+    c.setAttribute("d",`M ${p.x} ${p.y-p.ry*.55} l -7 12 h14 z`);c.setAttribute("class",s?"castle main":"castle");c.dataset.id=p.id;
+    c.addEventListener("click",ev=>{ev.stopPropagation();showCastle(p.id)});svg.appendChild(c);
+  });
+}
+
+function drawDetail(p){
+  drawBase();
+  // 詳細図は選択旧国を中央に大きくする
+  const overlay=document.createElementNS(NS,"g");
+  const scale=2.2, ox=500-p.x*scale, oy=430-p.y*scale;
+  const group=document.createElementNS(NS,"g");group.setAttribute("transform",`translate(${ox},${oy}) scale(${scale})`);
+  const bg=document.createElementNS(NS,"path");bg.setAttribute("d",pathFor(p));bg.setAttribute("fill",colorFor(p.lord));bg.setAttribute("fill-opacity",".62");bg.setAttribute("stroke","#4b5149");bg.setAttribute("stroke-width","1.2");group.appendChild(bg);
+  for(let i=1;i<=3;i++){
+    const r=document.createElementNS(NS,"circle");r.setAttribute("cx",p.x+(i-2)*p.rx*.35);r.setAttribute("cy",p.y+(i%2-.5)*p.ry*.4);r.setAttribute("r",3);r.setAttribute("fill","#6c7b55");r.setAttribute("opacity",".7");group.appendChild(r);
+  }
+  for(let i=0;i<4;i++){
+    const x1=p.x-p.rx*.75,y1=p.y-p.ry*.5+i*p.ry*.35;
+    const l=document.createElementNS(NS,"line");l.setAttribute("x1",x1);l.setAttribute("y1",y1);l.setAttribute("x2",x1+p.rx*1.45);l.setAttribute("y2",y1+p.ry*.18);l.setAttribute("class","road");group.appendChild(l);
+  }
+  svg.appendChild(group);
+
+  const title=document.createElementNS(NS,"text");title.textContent=p.name+" 詳細図";title.setAttribute("x",500);title.setAttribute("y",55);title.setAttribute("text-anchor","middle");title.setAttribute("fill","#fff");title.setAttribute("font-size","25");title.setAttribute("font-weight","800");svg.appendChild(title);
+
+  const castle=document.createElementNS(NS,"path");castle.setAttribute("d",`M 492 395 l -13 24 h26 z`);castle.setAttribute("class","castle main");castle.addEventListener("click",()=>showCastle(p.id));svg.appendChild(castle);
+  const ct=document.createElementNS(NS,"text");ct.textContent=p.castle;ct.setAttribute("x",500);ct.setAttribute("y",435);ct.setAttribute("text-anchor","middle");ct.setAttribute("class","castletext");ct.setAttribute("font-size","13");svg.appendChild(ct);
+
+  state.armies.filter(a=>a.province===p.id).forEach(a=>drawArmy(a,500+(a.id.charCodeAt(1)||1)*35-55,520));
+}
+
+function drawArmy(a,x,y){
+  const g=document.createElementNS(NS,"g");g.classList.add("army");g.dataset.id=a.id;
+  const c=document.createElementNS(NS,"circle");c.setAttribute("cx",x);c.setAttribute("cy",y);c.setAttribute("r",26);c.setAttribute("fill",a.side==="player"? "#2d73c5":"#b94b4b");c.setAttribute("class","armyCircle");g.appendChild(c);
+  const cr=document.createElementNS(NS,"text");cr.textContent=crestFor(a);cr.setAttribute("x",x);cr.setAttribute("y",y+5);cr.setAttribute("class","crest");g.appendChild(cr);
+  const tx=document.createElementNS(NS,"text");tx.textContent=`${a.name} ${money(a.troops)}兵`;tx.setAttribute("x",x);tx.setAttribute("y",y+42);tx.setAttribute("class","armytext");g.appendChild(tx);
+  const cm=document.createElementNS(NS,"text");cm.textContent=a.commander;cm.setAttribute("x",x);cm.setAttribute("y",y+54);cm.setAttribute("class","armytext");g.appendChild(cm);
+  let drag=false, moved=false, start={};
+  g.addEventListener("pointerdown",ev=>{
+    ev.stopPropagation();drag=true;moved=false;start={x:ev.clientX,y:ev.clientY};g.setPointerCapture(ev.pointerId);state.selectedArmy=a.id;renderInfo();
+  });
+  g.addEventListener("pointermove",ev=>{if(!drag)return;if(Math.hypot(ev.clientX-start.x,ev.clientY-start.y)>4)moved=true;});
+  g.addEventListener("pointerup",ev=>{
+    if(!drag)return;drag=false;
+    if(moved){
+      // 手動ドラッグした軍は「移動先の旧国」を選択して位置を更新。
+      const p=state.selectedProvince ? province(state.selectedProvince):province(a.province);
+      if(p) a.province=p.id;
+      draw();renderInfo();
+    }else{renderInfo();}
+  });
+  svg.appendChild(g);
+}
+
+function draw(){
+  if(state.view==="national") drawNational();
+  else if(state.view==="region") drawRegion(state.selectedRegion||"関東");
+  else if(state.view==="province") drawDetail(province(state.selectedProvince)||state.provinces[0]);
+  else if(state.view==="battle") drawBattlefield(state.selectedRegion||"関東");
+  updateHeader();
+}
+function openProvince(id){
+  state.selectedProvince=id;state.view="province";state.selectedArmy=null;draw();renderInfo();
+}
+
+function drawRegion(regionName){
+  drawBase();
+  const r=REGIONS[regionName]||REGIONS["関東"];
+  const g=document.createElementNS(NS,"g");
+  r.ids.forEach(id=>{
+    const p=province(id); if(!p)return;
+    const e=document.createElementNS(NS,"ellipse");
+    e.setAttribute("cx",p.x);e.setAttribute("cy",p.y);
+    e.setAttribute("rx",p.rx*.85);e.setAttribute("ry",p.ry*.75);
+    e.setAttribute("class","territory");
+    e.setAttribute("fill",colorFor(p.lord));e.setAttribute("fill-opacity",p.lord==="国人衆"?".35":".78");
+    e.addEventListener("click",()=>openProvince(id));
+    g.appendChild(e);
+    const t=document.createElementNS(NS,"text");t.textContent=p.name;
+    t.setAttribute("x",p.x);t.setAttribute("y",p.y+4);t.setAttribute("class","provlabel");g.appendChild(t);
+  });
+  svg.appendChild(g);
+  const title=document.createElementNS(NS,"text");
+  title.textContent=regionName+"地方";title.setAttribute("x",500);title.setAttribute("y",52);
+  title.setAttribute("text-anchor","middle");title.setAttribute("fill","#fff");title.setAttribute("font-size","25");title.setAttribute("font-weight","800");svg.appendChild(title);
+}
+
+function drawBattlefield(regionName){
+  drawBase();
+  const r=REGIONS[regionName]||REGIONS["関東"];
+  const terrain=document.createElementNS(NS,"g");
+  for(let i=0;i<9;i++){
+    const x=100+i*100, y=150+((i*83)%500);
+    const c=document.createElementNS(NS,"circle");
+    c.setAttribute("cx",x);c.setAttribute("cy",y);c.setAttribute("r",45+(i%3)*14);
+    c.setAttribute("fill","#647b55");c.setAttribute("opacity",".28");terrain.appendChild(c);
+  }
+  for(let i=0;i<6;i++){
+    const l=document.createElementNS(NS,"path");
+    l.setAttribute("d",`M ${80+i*160} 780 Q ${180+i*130} ${580-i*30} ${300+i*100} 170`);
+    l.setAttribute("class","river");l.setAttribute("opacity",".5");terrain.appendChild(l);
+  }
+  svg.appendChild(terrain);
+
+  const title=document.createElementNS(NS,"text");
+  title.textContent=(BATTLEFIELDS[regionName]?.name||regionName+"戦場")+" — 手動戦場";
+  title.setAttribute("x",500);title.setAttribute("y",48);title.setAttribute("text-anchor","middle");
+  title.setAttribute("fill","#fff");title.setAttribute("font-size","24");title.setAttribute("font-weight","800");svg.appendChild(title);
+
+  // 城を戦場の基準点として表示
+  const ca=document.createElementNS(NS,"path");ca.setAttribute("d","M 500 340 l -18 32 h36 z");ca.setAttribute("class","castle main");svg.appendChild(ca);
+  const ct=document.createElementNS(NS,"text");ct.textContent="戦場城";ct.setAttribute("x",500);ct.setAttribute("y",390);ct.setAttribute("text-anchor","middle");ct.setAttribute("class","castletext");ct.setAttribute("font-size","13");svg.appendChild(ct);
+
+  const armies=state.armies.filter(a=>r.ids.includes(a.province));
+  armies.forEach((a,i)=>drawBattleArmy(a,180+(i%4)*210,560-Math.floor(i/4)*180));
+  const note=document.createElementNS(NS,"text");
+  note.textContent="軍駒をドラッグして配置。勝敗・損害・撤退はゲーム側では判定しません。";
+  note.setAttribute("x",500);note.setAttribute("y",850);note.setAttribute("text-anchor","middle");
+  note.setAttribute("fill","#fff");note.setAttribute("font-size","13");svg.appendChild(note);
+}
+
+function drawBattleArmy(a,x,y){
+  const g=document.createElementNS(NS,"g");g.classList.add("army");
+  const c=document.createElementNS(NS,"circle");c.setAttribute("cx",x);c.setAttribute("cy",y);c.setAttribute("r",31);
+  c.setAttribute("fill",a.side==="player"?"#2d73c5":"#b94b4b");c.setAttribute("class","armyCircle");g.appendChild(c);
+  const cr=document.createElementNS(NS,"text");cr.textContent=crestFor(a);cr.setAttribute("x",x);cr.setAttribute("y",y+6);cr.setAttribute("class","crest");g.appendChild(cr);
+  const tx=document.createElementNS(NS,"text");tx.textContent=`${a.name} ${money(a.troops)}兵`;tx.setAttribute("x",x);tx.setAttribute("y",y+48);tx.setAttribute("class","armytext");g.appendChild(tx);
+  const cm=document.createElementNS(NS,"text");cm.textContent=a.commander;cm.setAttribute("x",x);cm.setAttribute("y",y+61);cm.setAttribute("class","armytext");g.appendChild(cm);
+  let drag=false,moved=false,last={};
+  g.addEventListener("pointerdown",ev=>{ev.stopPropagation();drag=true;moved=false;last={x:ev.clientX,y:ev.clientY};g.setPointerCapture(ev.pointerId);state.selectedArmy=a.id;renderInfo();});
+  g.addEventListener("pointermove",ev=>{if(!drag)return;if(Math.hypot(ev.clientX-last.x,ev.clientY-last.y)>4)moved=true;});
+  g.addEventListener("pointerup",ev=>{if(!drag)return;drag=false;if(moved){a._battleX=ev.offsetX||x;a._battleY=ev.offsetY||y;draw();renderInfo()}else renderInfo();});
+  svg.appendChild(g);
+}
+
+function showCastle(id){
+  state.selectedProvince=id;state.view="province";state.selectedArmy=null;draw();renderInfo("castle");
+}
+function selectArmy(id){state.selectedArmy=id;renderInfo()}
+function renderInfo(mode){
+  const box=document.getElementById("info");
+  if(state.selectedArmy){
+    const a=army(state.selectedArmy),p=province(a.province);
+    box.innerHTML=`<div class="infoCard"><h3>${esc(a.name)}</h3>
+      <div><span class="tag ${a.side==="player"?"blueTag":"redTag"}">${esc(a.lord)}</span><span class="tag">家紋：${esc(crestFor(a))}</span></div>
+      <div class="stat"><span>指揮官</span><b>${esc(a.commander)}</b></div>
+      <div class="stat"><span>現在地</span><b>${esc(p?.name||"—")}</b></div>
+      <div class="stat"><span>兵力</span><b>${money(a.troops)}人</b></div>
+      <div style="margin-top:9px"><label class="small">兵力を手動変更</label><input id="troopInput" type="number" min="0" step="1000" value="${a.troops}"></div>
+      <div class="range"><button id="minus1">−1,000</button><button id="plus1">＋1,000</button></div>
+      <button id="applyTroops" style="width:100%;margin-top:7px">兵力を確定</button>
+      <div class="notice" style="margin-top:8px">戦闘結果や損害は自動計算しません。必要ならここで兵力を手動変更します。</div>
+    </div>`;
+    document.getElementById("applyTroops").onclick=()=>{const n=Math.max(0,parseInt(document.getElementById("troopInput").value||"0",10));a.troops=n;draw();renderInfo()};
+    document.getElementById("minus1").onclick=()=>{a.troops=Math.max(0,a.troops-1000);draw();renderInfo()};
+    document.getElementById("plus1").onclick=()=>{a.troops+=1000;draw();renderInfo()};
+    return;
+  }
+  const p=province(state.selectedProvince);
+  if(state.view==="region"){
+    const r=REGIONS[state.selectedRegion||"関東"];
+    box.innerHTML=`<div class="infoCard"><h3>${esc(state.selectedRegion||"関東")}地方</h3><div class="small">旧国を選択すると旧国図へ。さらに「進む」で戦場へ。</div>${r.ids.map(id=>{const q=province(id);return `<button class="armyPick" data-province="${id}" style="width:100%;margin-top:5px">${esc(q.name)}　${esc(q.lord)}</button>`}).join("")}</div>`;
+    box.querySelectorAll("[data-province]").forEach(b=>b.onclick=()=>openProvince(b.dataset.province));
+    return;
+  }
+  if(state.view==="battle"){
+    box.innerHTML=`<div class="infoCard"><h3>手動戦場</h3><div class="notice">ここでは軍駒を自由に動かせます。戦闘結果、損害、撤退、攻城の進行は自動計算しません。</div><button id="battleBack" style="width:100%;margin-top:8px">旧国図へ戻る</button></div>`;
+    document.getElementById("battleBack").onclick=()=>{state.view="province";draw();renderInfo()};
+    return;
+  }
+  if(!p){
+    box.innerHTML=`<div class="infoCard"><h3>全国図</h3><div class="small">「地方」で地方図へ、地方図から旧国図へ進めます。</div></div>`;
+    return;
+  }
+  const armies=state.armies.filter(a=>a.province===p.id);
+  box.innerHTML=`<div class="infoCard"><h3>${esc(p.name)}</h3>
+    <div><span class="tag">${esc(p.region)}</span><span class="tag ${p.lord==="青葉家"?"blueTag":p.lord==="黒峰家"?"redTag":""}">${esc(p.lord)}</span></div>
+    <div class="stat"><span>石高</span><b>${money(p.koku)}石</b></div>
+    <div class="stat"><span>本城</span><b>${esc(p.castle)}</b></div>
+    <div class="stat"><span>軍</span><b>${armies.length}軍</b></div>
+    <div style="margin-top:9px">${armies.map(a=>`<button class="armyPick" data-id="${a.id}" style="width:100%;margin-top:5px">${a.side==="player"?"🔵":"🔴"} ${esc(a.name)}　${money(a.troops)}兵</button>`).join("")||'<div class="small">この地域に軍はありません。</div>'}</div>
+  </div>`;
+  box.querySelectorAll(".armyPick").forEach(b=>b.onclick=()=>{selectArmy(b.dataset.id)});
+  if(mode==="castle"){
+    box.innerHTML+=`<div class="infoCard"><h3>城郭情報</h3><div class="stat"><span>城</span><b>${esc(p.castle)}</b></div><div class="stat"><span>所有</span><b>${esc(p.lord)}</b></div><div class="stat"><span>生産基準</span><b>${money(Math.round(p.koku/1000))}</b></div><div class="notice">城の生産はターン終了時に増加します。攻城の勝敗は自動判定しません。</div></div>`;
+  }
+}
+
+function updateHeader(){
+  document.getElementById("year").textContent=state.year;
+  document.getElementById("season").textContent=seasons[state.seasonIndex];
+  document.getElementById("gold").textContent=money(state.gold);
+  document.getElementById("food").textContent=money(state.food);
+  document.getElementById("troops").textContent=money(state.armies.reduce((s,a)=>s+a.troops,0));
+  document.getElementById("turn").textContent=state.turn;
+}
+
+function endTurn(){
+  // 経済のみ。軍は一切移動・戦闘しない。
+  const owned=state.provinces.filter(p=>p.lord==="青葉家");
+  state.gold+=owned.reduce((s,p)=>s+Math.max(100,Math.round(p.koku/1000)),0);
+  state.food+=owned.reduce((s,p)=>s+Math.max(200,Math.round(p.koku/700)),0);
+  state.turn++;
+  state.seasonIndex=(state.seasonIndex+1)%4;
+  if(state.seasonIndex===0)state.year++;
+  draw();renderInfo();
+}
+
+function save(){
+  localStorage.setItem(KEY,JSON.stringify(state));
+  alert("セーブしました。");
+}
+function load(){
+  const raw=localStorage.getItem(KEY);if(!raw){alert("セーブデータがありません。");return}
+  Object.assign(state,JSON.parse(raw));state.selectedRegion=state.selectedRegion||"関東";draw();renderInfo();alert("ロードしました。");
+}
+function reset(){
+  localStorage.removeItem(KEY);
+  Object.assign(state,{turn:1,year:1560,seasonIndex:0,gold:100000,food:300000,selectedProvince:null,selectedRegion:null,selectedArmy:null,view:"national",zoom:1,provinces:JSON.parse(JSON.stringify(PROVINCES)),armies:JSON.parse(JSON.stringify(ARMY_SEED))});
+  draw();renderInfo();
+}
+
+document.getElementById("endTurn").onclick=endTurn;
+document.getElementById("saveBtn").onclick=save;
+document.getElementById("loadBtn").onclick=load;
+document.getElementById("clearBtn").onclick=reset;
+document.getElementById("nationalBtn").onclick=()=>{state.view="national";state.selectedProvince=null;state.selectedRegion=null;state.selectedArmy=null;draw();renderInfo()};
+document.getElementById("regionBtn").onclick=()=>{
+  state.view="region";state.selectedRegion=state.selectedRegion||"関東";state.selectedArmy=null;draw();renderInfo();
+};
+document.getElementById("homeBtn").onclick=()=>{state.view="national";state.selectedProvince=null;state.selectedRegion=null;state.selectedArmy=null;draw();renderInfo()};
+document.getElementById("resetBtn").onclick=()=>{state.view="national";state.selectedProvince=null;state.selectedRegion=null;state.selectedArmy=null;draw();renderInfo()};
+document.getElementById("prevBtn").onclick=()=>{
+  if(state.view==="battle"){state.view="province";draw();renderInfo();}
+  else if(state.view==="province"){state.view="region";state.selectedProvince=null;draw();renderInfo();}
+  else if(state.view==="region"){state.view="national";state.selectedRegion=null;draw();renderInfo();}
+  else {state.view="national";draw();renderInfo();}
+};
+document.getElementById("nextBtn").onclick=()=>{
+  if(state.view==="national"){state.view="region";state.selectedRegion=state.selectedRegion||"関東";}
+  else if(state.view==="region"){state.view="province";state.selectedProvince=state.selectedProvince||REGIONS[state.selectedRegion||"関東"].ids[0];}
+  else if(state.view==="province"){state.view="battle";}
+  draw();renderInfo();
+};
+document.getElementById("zoomIn").onclick=()=>{
+  state.zoom=Math.min(2,state.zoom+.15);
+  svg.style.transform=`scale(${state.zoom})`;
+};
+document.getElementById("zoomOut").onclick=()=>{
+  state.zoom=Math.max(.75,state.zoom-.15);
+  svg.style.transform=`scale(${state.zoom})`;
+};
+
+draw();renderInfo();
+</script>
+</body>
+</html>
